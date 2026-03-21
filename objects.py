@@ -29,8 +29,7 @@ class Radioactivity(mesa.Agent):
             self.level = model.random.uniform(0.66, 1.0)
 
     def step(self):
-        pass  # No behaviour
-
+        pass  
 
 class Waste(mesa.Agent):
     """
@@ -42,7 +41,7 @@ class Waste(mesa.Agent):
         self.waste_type = waste_type
 
     def step(self):
-        pass  # No behaviour
+        pass 
 
 
 class Wall(mesa.Agent):
@@ -54,7 +53,7 @@ class Wall(mesa.Agent):
         super().__init__(model)
 
     def step(self):
-        pass  # No behaviour
+        pass 
 
 
 class DisposalZone(mesa.Agent):
@@ -67,4 +66,4 @@ class DisposalZone(mesa.Agent):
         super().__init__(model)
 
     def step(self):
-        pass  # No behaviour
+        pass  

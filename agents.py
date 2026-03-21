@@ -46,7 +46,7 @@ class Robot(mesa.Agent):
             "red":    w - 1,
         }[robot_type]
 
-        # --- Waste pipeline ---
+        
         self._target_waste    = robot_type   # what this robot collects
         self._product_waste   = {"green": "yellow", "yellow": "red",  "red": None}[robot_type]
         self._transform_count = {"green": 2,         "yellow": 2,     "red": 0   }[robot_type]
@@ -60,16 +60,14 @@ class Robot(mesa.Agent):
             "inventory":    [],
             "carrying":     0,
             "percepts":     {},
-            "known_waste":  {},    # {(x,y): waste_type}
-            "disposal_pos": None,  # set at model init for red robots
+            "known_waste":  {},    
+            "disposal_pos": None,  
             "last_action":  WAIT,
             "steps_idle":   0,
         }
 
     # =========================================================================
-    # Mesa step
-    # =========================================================================
-
+  
     def step(self):
         percepts     = self._perceive()
         self._update_knowledge(percepts)
@@ -78,9 +76,7 @@ class Robot(mesa.Agent):
         self._update_knowledge(new_percepts)
         self.knowledge["last_action"] = action["type"]
 
-    # =========================================================================
-    # Perceive
-    # =========================================================================
+   
 
     def _perceive(self) -> dict:
         if self.pos is None:
@@ -90,9 +86,6 @@ class Robot(mesa.Agent):
         )
         return {c: self.model.grid.get_cell_list_contents(c) for c in cells}
 
-    # =========================================================================
-    # Update knowledge
-    # =========================================================================
 
     def _update_knowledge(self, percepts: dict):
         k             = self.knowledge
@@ -127,7 +120,6 @@ class Robot(mesa.Agent):
                     if k["disposal_pos"] is None:
                         k["disposal_pos"] = tuple(msg.content.get("pos"))
 
-        # purge stale waste entries
         stale = [
             p for p in list(k["known_waste"])
             if not any(isinstance(o, Waste)
@@ -136,9 +128,6 @@ class Robot(mesa.Agent):
         for p in stale:
             del k["known_waste"][p]
 
-    # =========================================================================
-    # Deliberate
-    # =========================================================================
 
     def _deliberate(self, k: dict) -> dict:
         """
@@ -157,52 +146,49 @@ class Robot(mesa.Agent):
         if pos is None:
             return {"type": WAIT}
 
-        # 1. TRANSFORM
         if (self._transform_count > 0
                 and inventory.count(self._target_waste) >= self._transform_count):
             return {"type": TRANSFORM}
 
-        # 2. RED — deliver to disposal zone
+        
         if self.robot_type == "red" and "red" in inventory:
             disposal = k["disposal_pos"]
             if disposal is None:
-                # Move 1 step east to find disposal (no relaxation needed — red has no limit)
+               
                 return self._bfs_move((min(pos[0]+1, self._zone_max_x), pos[1]),
                                       k, relaxed=False)
             if pos == disposal:
                 return {"type": DROP}
             return self._bfs_move(disposal, k, relaxed=False)
 
-        # 3. HAND-OFF — carry product to zone boundary then drop
+      
         if self._product_waste and self._product_waste in inventory:
             drop_x = self._drop_x
             if pos[0] >= drop_x:
                 return {"type": DROP}
-            # relaxed=True allows stepping into drop_x (one column past normal limit)
+           
             return self._bfs_move((drop_x, pos[1]), k, relaxed=True)
 
-        # 4. PICK — target waste right here
+        
         if carrying < self.CAPACITY:
             for obj in k["percepts"].get(pos, []):
                 if isinstance(obj, Waste) and obj.waste_type == self._target_waste:
                     return {"type": PICK}
 
-        # 5. NAVIGATE — nearest known target waste WITHIN OWN ZONE
+       
         if carrying < self.CAPACITY:
             target = self._nearest_waste(k)
             if target is not None:
                 if pos == target:
                     return {"type": PICK}
-                # relaxed=False — navigate strictly within own zone
+              
                 return self._bfs_move(target, k, relaxed=False)
 
-        # 6. EXPLORE — random walk, strictly within own zone
+       
         k["steps_idle"] += 1
         return self._random_move(k, relaxed=False)
 
-    # =========================================================================
-    # Navigation helpers
-    # =========================================================================
+  
 
     def _nearest_waste(self, k: dict):
         """Nearest known waste of target type strictly within own zone."""
@@ -244,7 +230,7 @@ class Robot(mesa.Agent):
                     queue.append((nx,ny))
 
         if not found:
-            return self._random_move(k, relaxed=False)  # never relax for fallback
+            return self._random_move(k, relaxed=False)  
 
         step = target
         while visited[step] != pos:
@@ -282,19 +268,19 @@ class Robot(mesa.Agent):
         x, y = pos
         w, h = self.model.width, self.model.height
 
-        # Grid bounds
+        
         if x < 0 or y < 0 or x >= w or y >= h:
             return False
 
-        # Zone limit
+        
         extra = 1 if relaxed else 0
         if self.robot_type == "green"  and x >= w // 3     + extra:
             return False
         if self.robot_type == "yellow" and x >= 2 * w // 3 + extra:
             return False
-        # red: no restriction
+       
 
-        # Wall
+        
         if any(isinstance(o, Wall)
                for o in self.model.grid.get_cell_list_contents((x, y))):
             return False

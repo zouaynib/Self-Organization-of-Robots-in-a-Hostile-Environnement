@@ -1,4 +1,4 @@
-mesa>=2.3
+mesa==3.1.4
 solara>=1.35
 matplotlib>=3.7
 pandas>=2.0

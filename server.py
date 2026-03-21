@@ -3,16 +3,17 @@
 # Self-organization of robots in a hostile environment
 # CentraleSupélec MAS 2025-2026
 # =============================================================================
-# Solara/Mesa visualization: colored zone backgrounds, clear agent rendering,
-# live legend, and waste-over-time chart.
 
 import solara
-import matplotlib
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import pandas as pd
 
-from mesa.visualization import SolaraViz, make_space_component, make_plot_component
+# --- Import compatible avec toutes les versions de Mesa ---
+from mesa.visualization import SolaraViz, make_plot_component
+
+try:
+    from mesa.visualization import make_space_component
+except ImportError:
+    from mesa.visualization.components.matplotlib_components import make_space_component
 
 from model import RobotMission
 from agents import Robot
@@ -20,143 +21,93 @@ from objects import Waste, Wall, DisposalZone, Radioactivity
 
 
 # =============================================================================
-# Agent portrayal
+# Agent portrayal — compatible Mesa 3.x et 4.x
 # =============================================================================
 
 def agent_portrayal(agent):
-    """Return a Mesa portrayal dict for each agent type."""
 
-    # ------------------------------------------------------------------
-    # Robots — large markers with distinct colors
-    # ------------------------------------------------------------------
+    # Robots
     if isinstance(agent, Robot):
-        color_map = {
-            "green":  "#1a9641",   # deep green
-            "yellow": "#d9a520",   # amber
-            "red":    "#d73027",   # vivid red
-        }
-        marker_map = {
-            "green":  "^",   # triangle up
-            "yellow": "s",   # square
-            "red":    "D",   # diamond
-        }
+        colors  = {"green": "#1a9641", "yellow": "#d9a520", "red": "#d73027"}
+        markers = {"green": "^",       "yellow": "s",       "red": "D"}
         return {
-            "color":  color_map[agent.robot_type],
-            "size":   220,
-            "marker": marker_map[agent.robot_type],
+            "color":  colors[agent.robot_type],
+            "size":   250,
+            "marker": markers[agent.robot_type],
             "zorder": 4,
         }
 
-    # ------------------------------------------------------------------
-    # Waste — medium circles
-    # ------------------------------------------------------------------
+    # Déchets
     if isinstance(agent, Waste):
-        color_map = {
-            "green":  "#52b788",
-            "yellow": "#f4a261",
-            "red":    "#e63946",
-        }
+        colors = {"green": "#52b788", "yellow": "#f4a261", "red": "#e63946"}
         return {
-            "color":  color_map.get(agent.waste_type, "grey"),
-            "size":   90,
+            "color":  colors.get(agent.waste_type, "grey"),
+            "size":   100,
             "marker": "o",
             "zorder": 3,
         }
 
-    # ------------------------------------------------------------------
-    # Disposal zone — blue star
-    # ------------------------------------------------------------------
+    # Zone de dépôt
     if isinstance(agent, DisposalZone):
-        return {
-            "color":  "#023e8a",
-            "size":   350,
-            "marker": "*",
-            "zorder": 3,
-        }
+        return {"color": "#023e8a", "size": 400, "marker": "*", "zorder": 3}
 
-    # ------------------------------------------------------------------
-    # Walls — dark squares
-    # ------------------------------------------------------------------
+    # Murs
     if isinstance(agent, Wall):
-        return {
-            "color":  "#2d2d2d",
-            "size":   180,
-            "marker": "s",
-            "zorder": 2,
-        }
+        return {"color": "#2d2d2d", "size": 200, "marker": "s", "zorder": 2}
 
-    # Radioactivity — invisible
-    return {"color": "none", "size": 0}
+    # Radioactivité — invisible
+    return {"color": "none", "size": 0, "marker": "."}
 
 
 # =============================================================================
-# Zone background overlay
+# Fond coloré par zone
 # =============================================================================
 
 def zones_background(ax):
-    """Draw semi-transparent colored rectangles for z1 / z2 / z3."""
-    W = 30
-    H = 30
-
-    zone_style = [
-        # (x_origin, width, face_color,  label)
-        (0,       W/3, "#b7e4c7", "z1 – Low radioactivity"),
-        (W/3,     W/3, "#ffe8a1", "z2 – Medium radioactivity"),
-        (2*W/3,   W/3, "#ffb3b3", "z3 – High radioactivity"),
+    W, H = 30, 30
+    zones = [
+        (0,      W/3, "#b7e4c7"),
+        (W/3,    W/3, "#ffe8a1"),
+        (2*W/3,  W/3, "#ffb3b3"),
     ]
-
-    for x0, w, fc, _ in zone_style:
-        rect = mpatches.Rectangle(
-            (x0 - 0.5, -0.5),  # offset to align with cell centres
-            w, H,
-            facecolor=fc,
-            alpha=0.35,
-            linewidth=0,
-            zorder=0,
-        )
-        ax.add_patch(rect)
-
-    # Zone boundary lines
+    for x0, w, fc in zones:
+        ax.add_patch(mpatches.Rectangle(
+            (x0 - 0.5, -0.5), w, H,
+            facecolor=fc, alpha=0.35, linewidth=0, zorder=0,
+        ))
     for bx in (W/3, 2*W/3):
         ax.axvline(x=bx - 0.5, color="#888888", linewidth=1.0,
                    linestyle="--", zorder=1, alpha=0.6)
-
     ax.set_xlim(-0.5, W - 0.5)
     ax.set_ylim(-0.5, H - 0.5)
 
 
 # =============================================================================
-# Solara components
+# Légende
 # =============================================================================
 
 def make_legend(_model):
-    """Render a Markdown legend panel."""
-    return solara.Markdown(
-        """
+    return solara.Markdown("""
 ### Robots
-| Symbol | Type | Zone |
-|--------|------|------|
-| 🔺 Green robot | Collects green waste → yellow | z1 only |
-| 🟥 Yellow robot | Collects yellow waste → red | z1–z2 |
-| 🔷 Red robot | Transports red waste to disposal | z1–z3 |
+| Symbole | Type | Zone |
+|---------|------|------|
+| ▲ Vert   | Collecte vert → jaune     | z1       |
+| ■ Jaune  | Collecte jaune → rouge    | z1 + z2  |
+| ◆ Rouge  | Transporte rouge → dépôt  | z1+z2+z3 |
 
-### Waste & Objects
-| Symbol | Meaning |
-|--------|---------|
-| 🟢 Green circle | Green waste (z1) |
-| 🟡 Yellow circle | Yellow waste |
-| 🔴 Red circle | Red waste |
-| ⭐ Blue star | Disposal zone |
-| ⬛ Dark square | Wall |
-
-### Zone colours
-🟩 z1 – Low radioactivity &nbsp; 🟨 z2 – Medium &nbsp; 🟥 z3 – High
-        """
-    )
+### Déchets & Objets
+| Symbole | Signification |
+|---------|---------------|
+| ● Vert   | Déchet vert  |
+| ● Jaune  | Déchet jaune |
+| ● Rouge  | Déchet rouge |
+| ★ Bleu   | Zone de dépôt|
+| ■ Noir   | Mur          |
+""")
 
 
 # =============================================================================
-# Model instantiation
+# Paramètres du modèle
 # =============================================================================
 
 model_params = {
@@ -164,65 +115,48 @@ model_params = {
         "type": "Select",
         "value": True,
         "values": [True, False],
-        "label": "Agent communication",
+        "label": "Communication agents",
     },
     "n_green_waste": {
         "type": "SliderInt",
-        "value": 20,
-        "min": 5,
-        "max": 50,
-        "step": 5,
-        "label": "Initial green waste (z1)",
+        "value": 20, "min": 5, "max": 50, "step": 5,
+        "label": "Déchets verts (z1)",
     },
     "n_yellow_waste": {
         "type": "SliderInt",
-        "value": 10,
-        "min": 0,
-        "max": 30,
-        "step": 5,
-        "label": "Initial yellow waste (z2)",
+        "value": 10, "min": 0, "max": 30, "step": 5,
+        "label": "Déchets jaunes (z2)",
     },
     "n_red_waste": {
         "type": "SliderInt",
-        "value": 5,
-        "min": 0,
-        "max": 20,
-        "step": 1,
-        "label": "Initial red waste (z3)",
+        "value": 5, "min": 0, "max": 20, "step": 1,
+        "label": "Déchets rouges (z3)",
     },
     "n_walls": {
         "type": "SliderInt",
-        "value": 40,
-        "min": 0,
-        "max": 80,
-        "step": 5,
-        "label": "Number of walls",
+        "value": 40, "min": 0, "max": 80, "step": 5,
+        "label": "Murs",
     },
     "n_green_robots": {
         "type": "SliderInt",
-        "value": 3,
-        "min": 1,
-        "max": 6,
-        "step": 1,
-        "label": "Green robots (z1)",
+        "value": 3, "min": 1, "max": 6, "step": 1,
+        "label": "Robots verts",
     },
     "n_yellow_robots": {
         "type": "SliderInt",
-        "value": 3,
-        "min": 1,
-        "max": 6,
-        "step": 1,
-        "label": "Yellow robots (z1+z2)",
+        "value": 3, "min": 1, "max": 6, "step": 1,
+        "label": "Robots jaunes",
     },
     "n_red_robots": {
         "type": "SliderInt",
-        "value": 3,
-        "min": 1,
-        "max": 6,
-        "step": 1,
-        "label": "Red robots (z1+z2+z3)",
+        "value": 3, "min": 1, "max": 6, "step": 1,
+        "label": "Robots rouges",
     },
 }
+
+# =============================================================================
+# Composants de visualisation
+# =============================================================================
 
 model = RobotMission()
 
@@ -231,17 +165,15 @@ SpaceGraph = make_space_component(
     post_process=zones_background,
 )
 
-WastePlot = make_plot_component(
-    {
-        "Green Waste":  "#52b788",
-        "Yellow Waste": "#f4a261",
-        "Red Waste":    "#e63946",
-        "Disposed":     "#023e8a",
-    }
-)
+WastePlot = make_plot_component({
+    "Green Waste":  "#52b788",
+    "Yellow Waste": "#f4a261",
+    "Red Waste":    "#e63946",
+    "Disposed":     "#023e8a",
+})
 
 # =============================================================================
-# Page
+# Page principale
 # =============================================================================
 
 page = SolaraViz(
