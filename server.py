@@ -15,9 +15,9 @@ try:
 except ImportError:
     from mesa.visualization.components.matplotlib_components import make_space_component
 
-from model import RobotMission
-from agents import Robot
-from objects import Waste, Wall, DisposalZone, Radioactivity
+from src.model import RobotMission
+from src.agents import Robot
+from src.objects import Waste, Wall, DisposalZone, Radioactivity
 
 
 # =============================================================================

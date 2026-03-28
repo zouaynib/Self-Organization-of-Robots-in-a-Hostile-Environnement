@@ -13,9 +13,9 @@
 # exactly 1 column past its normal limit (relaxed=True).
 
 import mesa
-from agents import Robot, MOVE, PICK, TRANSFORM, DROP, WAIT
-from objects  import Waste, Wall, DisposalZone, Radioactivity
-from communication import CommunicationSystem
+from src.agents import Robot, MOVE, PICK, TRANSFORM, DROP, WAIT
+from src.objects import Waste, Wall, DisposalZone, Radioactivity
+from src.communication import CommunicationSystem
 
 
 class RobotMission(mesa.Model):

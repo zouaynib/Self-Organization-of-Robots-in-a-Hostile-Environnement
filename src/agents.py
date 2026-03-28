@@ -17,8 +17,8 @@
 
 from collections import deque
 import mesa
-from objects import Waste, Wall, DisposalZone
-from communication import Message
+from src.objects import Waste, Wall, DisposalZone
+from src.communication import Message
 
 MOVE      = "MOVE"
 PICK      = "PICK"

@@ -15,7 +15,7 @@
 import argparse
 import sys
 
-from model import RobotMission
+from src.model import RobotMission
 
 
 def run(steps: int = 200, save_csv: bool = False, communication: bool = True):
