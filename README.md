@@ -1,174 +1,289 @@
-# Self-Organization of Robots in a Hostile Environment
+<div align="center">
 
-**Multi-Agent System — CentraleSupélec MAS 2025-2026**
+# ☢️ Self-Organization of Robots in a Hostile Environment
 
----
+**Autonomous multi-agent radioactive waste cleanup simulation**
 
-## Table des matières
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Mesa](https://img.shields.io/badge/Mesa-3.x-FF6F00?style=for-the-badge)](https://mesa.readthedocs.io)
+[![Solara](https://img.shields.io/badge/Solara-Visualization-7C4DFF?style=for-the-badge)](https://solara.dev)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-1. [Présentation du projet](#1-présentation-du-projet)
-2. [Structure du projet](#2-structure-du-projet)
-3. [Environnement et zones](#3-environnement-et-zones)
-4. [Types de robots et de déchets](#4-types-de-robots-et-de-déchets)
-5. [Chaîne de transformation](#5-chaîne-de-transformation)
-6. [Boucle percept → délibérer → agir](#6-boucle-percept--délibérer--agir)
-7. [Navigation par BFS](#7-navigation-par-bfs)
-8. [Stratégie de communication](#8-stratégie-de-communication)
-9. [Actions et model.do()](#9-actions-et-modeldo)
-10. [Installation et lancement](#10-installation-et-lancement)
-11. [Métriques](#11-métriques)
+*CentraleSupelec — Multi-Agent Systems 2025-2026*
 
 ---
 
-## 1. Présentation du projet
+**Three types of robots** &nbsp;·&nbsp; **Three radioactive zones** &nbsp;·&nbsp; **One mission: clean it all up**
 
-Ce projet simule une mission de collecte et de traitement de déchets radioactifs par des robots autonomes dans un environnement hostile. Les robots doivent collaborer pour collecter, transformer et transporter les déchets vers une zone de dépôt finale, en respectant des contraintes de zones et de radioactivité.
+</div>
 
-La simulation est implémentée avec le framework **Mesa** (Python) et visualisée avec **Solara**. Elle illustre les concepts fondamentaux des systèmes multi-agents : perception, délibération, action, mémoire et communication.
+<br>
 
----
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
-## 2. Structure du projet
+## 📋 Table of Contents
+
+- [Overview](#-overview)
+- [The Environment](#-the-environment)
+- [Robots & Waste](#-robots--waste)
+- [Transformation Pipeline](#-transformation-pipeline)
+- [Agent Architecture](#-agent-architecture)
+- [Communication System](#-communication-system)
+- [Project Structure](#-project-structure)
+- [Getting Started](#-getting-started)
+- [Configuration](#%EF%B8%8F-configuration)
+- [Metrics & Analysis](#-metrics--analysis)
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 🔭 Overview
+
+> *How can autonomous robots coordinate to clean up radioactive waste — without any central controller?*
+
+This project simulates a **multi-agent system** where robots of different capabilities must **self-organize** to collect, transform, and dispose of radioactive waste across increasingly dangerous zones. Each robot has limited perception, local knowledge, and must collaborate through message passing.
+
+Built with the **Mesa** agent-based modeling framework and visualized in real-time with **Solara**.
 
 ```
-.
-├── .gitignore
-├── README.md
-├── requirements.txt
-├── run.py                 # Lanceur headless en ligne de commande
-├── server.py              # Visualisation Solara (zones, graphes, légende)
-└── src/
-    ├── __init__.py
-    ├── agents.py          # Classe Robot — boucle percept/délibérer/agir
-    ├── communication.py   # Système de messagerie entre agents
-    ├── model.py           # Environnement, validation et exécution des actions (do)
-    └── objects.py         # Objets passifs : Waste, Wall, DisposalZone, Radioactivity
+   Zone 1 (Safe)          Zone 2 (Medium)         Zone 3 (Danger!)
+ ┌─────────────────┬─────────────────────┬─────────────────────┐
+ │  🟢 🟢    ▲     │   🟡        ■       │   🔴         ◆      │
+ │     🟢  ▲    🧱 │      🟡  ■    🧱    │      🔴   ◆    🧱   │
+ │  🟢    ▲  🟢    │   🟡    ■     🟡    │   🔴    ◆      ★    │
+ │    ▲       🟢   │     ■         🧱    │     ◆    🔴   🧱    │
+ │  🟢   🧱   🟢   │   🟡   🧱     ■     │   🔴   🧱     ◆    │
+ └─────────────────┴─────────────────────┴─────────────────────┘
+   ▲ Green Robot     ■ Yellow Robot        ◆ Red Robot
+   🟢 Green Waste    🟡 Yellow Waste       🔴 Red Waste   ★ Disposal
 ```
 
-| Fichier | Rôle | Classes principales |
-|---|---|---|
-| `src/agents.py` | Logique décisionnelle complète de chaque robot | `Robot` |
-| `src/model.py` | Grille, placement des agents, méthode `do()` | `RobotMission` |
-| `src/objects.py` | Agents passifs sans comportement | `Waste`, `Wall`, `DisposalZone`, `Radioactivity` |
-| `src/communication.py` | Boîte aux lettres centrale | `CommunicationSystem`, `Message` |
-| `server.py` | Interface Solara avec zones colorées et métriques | — |
-| `run.py` | Simulation sans GUI avec sortie console | — |
+<!-- 📸 Uncomment the line below once you have a screen recording GIF:
+<div align="center">
+  <img src="docs/demo.gif" alt="Simulation Demo" width="700">
+  <p><em>Real-time visualization of the waste cleanup mission</em></p>
+</div>
+-->
 
----
+<br>
 
-## 3. Environnement et zones
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
-La grille est de **30×30 cases**, divisée en 3 zones verticales selon le niveau de radioactivité :
+## 🌍 The Environment
 
-| Zone | Colonnes | Radioactivité | Contenu initial |
-|---|---|---|---|
-| 🟩 z1 (verte) | `x ∈ [0, W/3)` | Faible (0.0 – 0.33) | Déchets verts + robots verts |
-| 🟨 z2 (jaune) | `x ∈ [W/3, 2W/3)` | Moyenne (0.33 – 0.66) | Déchets jaunes + robots jaunes |
-| 🟥 z3 (rouge) | `x ∈ [2W/3, W)` | Haute (0.66 – 1.0) | Déchets rouges + robots rouges + DisposalZone |
+The simulation takes place on a **30 x 30 grid** divided into three vertical zones of increasing radioactivity:
 
-Chaque cellule contient un agent `Radioactivity` passif dont le niveau est tiré aléatoirement dans la plage de sa zone. Des murs (`Wall`) sont placés aléatoirement, jamais sur les colonnes frontières `W/3` et `2W/3` pour garantir le passage entre zones.
+<table>
+<tr>
+<th width="33%">🟩 Zone 1 — Safe</th>
+<th width="33%">🟨 Zone 2 — Medium</th>
+<th width="33%">🟥 Zone 3 — Danger</th>
+</tr>
+<tr>
+<td>
 
----
+**Columns:** `0` to `W/3 - 1`
+**Radiation:** `0.00 – 0.33`
+**Contains:**
+- 🟢 Green waste
+- ▲ Green robots
 
-## 4. Types de robots et de déchets
+</td>
+<td>
 
-### 4.1 Les trois types de déchets
+**Columns:** `W/3` to `2W/3 - 1`
+**Radiation:** `0.33 – 0.66`
+**Contains:**
+- 🟡 Yellow waste
+- ■ Yellow robots
 
-| Type | Couleur | Origine |
-|---|---|---|
-| Green | 🟢 Vert | Présent dès le départ en z1 |
-| Yellow | 🟡 Jaune | Présent en z2 + créé par transformation de 2 verts |
-| Red | 🔴 Rouge | Présent en z3 + créé par transformation de 2 jaunes |
+</td>
+<td>
 
-### 4.2 Les trois types de robots
+**Columns:** `2W/3` to `W - 1`
+**Radiation:** `0.66 – 1.00`
+**Contains:**
+- 🔴 Red waste
+- ◆ Red robots
+- ★ Disposal zone
 
-| Robot | Symbole | Zone autorisée | Mission |
-|---|---|---|---|
-| Vert | ▲ Triangle | z1 uniquement `x < W/3` | Collecte 2 verts → transforme en 1 jaune → dépose à `x=W/3` |
-| Jaune | ■ Carré | z1 + z2 `x < 2W/3` | Collecte 2 jaunes → transforme en 1 rouge → dépose à `x=2W/3` |
-| Rouge | ◆ Diamant | z1 + z2 + z3 (tout) | Collecte 1 rouge → transporte à la DisposalZone ★ → élimine |
+</td>
+</tr>
+</table>
 
----
+> 🧱 **Walls** are randomly placed throughout the grid (never on zone boundaries) and must be navigated around using BFS pathfinding.
 
-## 5. Chaîne de transformation
+<br>
 
-La mission suit une pipeline séquentielle en 3 étapes :
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
+## 🤖 Robots & Waste
+
+### The Three Robot Types
+
+Each robot type has **different zone access** and a **specific mission**:
+
+| | Robot | Symbol | Zone Access | Collects | Produces | Capacity |
+|---|---|:---:|---|---|---|:---:|
+| 🟩 | **Green** | ▲ | z1 only | 🟢 Green | 🟡 Yellow | 2 |
+| 🟨 | **Yellow** | ■ | z1 + z2 | 🟡 Yellow | 🔴 Red | 2 |
+| 🟥 | **Red** | ◆ | z1 + z2 + z3 | 🔴 Red | ♻️ Disposed | 2 |
+
+### Zone Access Visualization
+
+```mermaid
+graph LR
+    subgraph z1["🟩 Zone 1"]
+        G["▲ Green"]
+    end
+    subgraph z2["🟨 Zone 2"]
+        Y["■ Yellow"]
+    end
+    subgraph z3["🟥 Zone 3"]
+        R["◆ Red"]
+        D["★ Disposal"]
+    end
+
+    G -. "can access" .-> z1
+    Y -. "can access" .-> z1
+    Y -. "can access" .-> z2
+    R -. "can access" .-> z1
+    R -. "can access" .-> z2
+    R -. "can access" .-> z3
+
+    style z1 fill:#b7e4c7,stroke:#2d6a4f
+    style z2 fill:#ffe8a1,stroke:#e09f3e
+    style z3 fill:#ffb3b3,stroke:#d00000
 ```
-🟢 Robot vert (z1)
-   ├── collecte 2 déchets verts
-   ├── TRANSFORM → 1 jaune dans l'inventaire
-   ├── BFS vers x = W/3
-   └── DROP → déchet jaune posé sur la grille
-            ↓
-🟡 Robot jaune (z1 + z2)
-   ├── collecte 2 déchets jaunes
-   ├── TRANSFORM → 1 rouge dans l'inventaire
-   ├── BFS vers x = 2W/3
-   └── DROP → déchet rouge posé sur la grille
-            ↓
-🔴 Robot rouge (z1 + z2 + z3)
-   ├── collecte 1 déchet rouge
-   ├── BFS vers DisposalZone (★ colonne x = W-1)
-   └── DROP → déchet définitivement éliminé
-              waste_counts["disposed"] += 1
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 🔄 Transformation Pipeline
+
+The waste cleanup follows a **sequential pipeline** — each stage feeds into the next:
+
+```mermaid
+graph LR
+    GW1["🟢 Green"] --> |"collect 2"| GT["⚙️ Transform"]
+    GT --> YW["🟡 Yellow"]
+    YW --> |"collect 2"| YT["⚙️ Transform"]
+    YT --> RW["🔴 Red"]
+    RW --> |"collect 1"| DISP["★ Dispose"]
+    DISP --> DONE["✅ Eliminated"]
+
+    style GW1 fill:#81c784,stroke:#2e7d32,color:#000
+    style GT fill:#e0e0e0,stroke:#757575,color:#000
+    style YW fill:#ffd54f,stroke:#f9a825,color:#000
+    style YT fill:#e0e0e0,stroke:#757575,color:#000
+    style RW fill:#e57373,stroke:#c62828,color:#000
+    style DISP fill:#263238,stroke:#fff,color:#fff
+    style DONE fill:#4caf50,stroke:#2e7d32,color:#fff
 ```
 
-Les transformations se font entièrement en mémoire (dans l'inventaire). Le déchet n'apparaît physiquement sur la grille qu'au moment du `DROP`.
+<table>
+<tr>
+<td width="33%">
 
----
-
-## 6. Boucle percept → délibérer → agir
-
-À chaque step, chaque robot exécute la méthode `step()` :
-
-```python
-def step(self):
-    percepts     = self._perceive()              # Observer le voisinage (Moore rayon 1)
-    self._update_knowledge(percepts)             # Mettre à jour la base de connaissances
-    action       = self._deliberate(self.knowledge)  # Choisir une action
-    new_percepts = self.model.do(self, action)   # Exécuter l'action via le modèle
-    self._update_knowledge(new_percepts)         # Intégrer le feedback
-    self.knowledge["last_action"] = action["type"]
+### Stage 1 — Green Robot ▲
+```
+  🟢 + 🟢
+    ⬇️ TRANSFORM
+    🟡
+    ⬇️ BFS → zone boundary
+    📦 DROP at x = W/3
 ```
 
-### 6.1 Perception
+</td>
+<td width="33%">
 
-Le robot perçoit toutes les cases dans son **voisinage Moore de rayon 1** (8 voisins + case actuelle). Il obtient un dictionnaire `{(x,y): [liste d'objets]}` pour chaque case perçue.
+### Stage 2 — Yellow Robot ■
+```
+  🟡 + 🟡
+    ⬇️ TRANSFORM
+    🔴
+    ⬇️ BFS → zone boundary
+    📦 DROP at x = 2W/3
+```
 
-### 6.2 Base de connaissances (`self.knowledge`)
+</td>
+<td width="33%">
+
+### Stage 3 — Red Robot ◆
+```
+  🔴
+    ⬇️ BFS → ★ Disposal
+    ♻️ DISPOSED
+    ✅ waste_counts["disposed"]++
+```
+
+</td>
+</tr>
+</table>
+
+> **Hand-off mechanism:** When dropping transformed waste at a zone boundary, a robot is allowed to step **one column past** its normal zone limit (`relaxed=True`). This ensures waste is physically placed where the next robot type can reach it.
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 🧠 Agent Architecture
+
+Every robot follows a **Perceive → Deliberate → Act** loop each simulation step:
+
+```mermaid
+graph TD
+    A["👁️ PERCEIVE<br/><i>Scan Moore neighborhood (radius 1)</i>"] --> B["📝 UPDATE KNOWLEDGE<br/><i>Update known_waste, read messages</i>"]
+    B --> C["🤔 DELIBERATE<br/><i>Priority-based action selection</i>"]
+    C --> D["⚡ ACT<br/><i>model.do() validates & executes</i>"]
+    D --> E["📝 UPDATE KNOWLEDGE<br/><i>Integrate new percepts</i>"]
+    E --> A
+
+    style A fill:#bbdefb,stroke:#1565c0,color:#000
+    style B fill:#c8e6c9,stroke:#2e7d32,color:#000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000
+    style D fill:#ffcdd2,stroke:#c62828,color:#000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000
+```
+
+### Decision Priorities
+
+The `_deliberate()` function evaluates these priorities **in order** and picks the first match:
+
+| # | Priority | Condition | Action |
+|:---:|---|---|---|
+| 1️⃣ | **Transform** | Inventory has ≥ N target waste | `TRANSFORM` |
+| 2️⃣ | **Deliver** | Red robot + red in inventory | `BFS → Disposal → DROP` |
+| 3️⃣ | **Hand-off** | Transformed product in inventory | `BFS → zone boundary → DROP` |
+| 4️⃣ | **Pick up** | Target waste on current cell | `PICK` |
+| 5️⃣ | **Navigate** | Known target waste in memory | `BFS → nearest waste` |
+| 6️⃣ | **Explore** | Nothing else to do | Random walk |
+
+### Knowledge Base
+
+Each robot maintains a local `knowledge` dictionary — there is **no global shared state**:
 
 ```python
 self.knowledge = {
-    "pos":          None,      # position courante (x, y)
-    "inventory":    [],        # liste des déchets portés
-    "carrying":     0,         # len(inventory)
-    "percepts":     {},        # dernière perception
-    "known_waste":  {},        # {(x,y): waste_type} — mémoire des déchets vus
-    "disposal_pos": None,      # position de la DisposalZone
-    "last_action":  WAIT,
-    "steps_idle":   0,         # compteur anti-blocage
+    "pos":          (x, y),       # Current position
+    "inventory":    [],           # Carried waste items
+    "carrying":     0,            # len(inventory)
+    "known_waste":  {},           # {(x,y): waste_type} — remembered waste locations
+    "disposal_pos": None,         # Disposal zone location (if discovered)
+    "percepts":     {},           # Latest sensor readings
+    "last_action":  "WAIT",
+    "steps_idle":   0,            # Anti-deadlock counter
 }
 ```
 
-### 6.3 Délibération — 6 priorités ordonnées
+<details>
+<summary><strong>🔍 How BFS Pathfinding Works</strong></summary>
 
-La fonction `_deliberate()` est une **fonction pure** sur le `knowledge`. Elle suit 6 priorités strictement ordonnées et s'arrête à la première qui dit "oui" :
+<br>
 
-| Priorité | Condition | Action |
-|---|---|---|
-| 1 | Inventaire contient ≥ N déchets cibles | `TRANSFORM` |
-| 2 | Robot rouge + rouge en inventaire | `BFS → DisposalZone → DROP` |
-| 3 | Produit transformé en inventaire | `BFS → frontière zone → DROP` |
-| 4 | Déchet cible sur la case actuelle | `PICK` |
-| 5 | known_waste contient une cible connue | `BFS → position cible` |
-| 6 | Aucune des conditions précédentes | Exploration aléatoire |
-
----
-
-## 7. Navigation par BFS
-
-La navigation utilise un algorithme **BFS (Breadth-First Search)** au lieu d'un déplacement glouton. Cela permet au robot de trouver le chemin optimal en **contournant automatiquement** les murs et les frontières de zone.
+Robots use **Breadth-First Search** (not greedy movement) to navigate, which automatically handles wall avoidance and zone boundaries:
 
 ```python
 def _bfs_move(self, target, k, relaxed):
@@ -177,160 +292,261 @@ def _bfs_move(self, target, k, relaxed):
     while queue:
         cur = queue.popleft()
         if cur == target: break
-        for voisin in moore_neighbours(cur):
-            if voisin not in visited and self._walkable(voisin, relaxed):
-                visited[voisin] = cur
-                queue.append(voisin)
-    # Retourner le premier pas du chemin optimal
+        for neighbour in moore_neighbours(cur):
+            if neighbour not in visited and self._walkable(neighbour, relaxed):
+                visited[neighbour] = cur
+                queue.append(neighbour)
+    # Backtrack to find the first step of the optimal path
 ```
 
-Le paramètre `relaxed=True` autorise le robot à franchir d'**une colonne** sa limite de zone, uniquement lors du dépôt du déchet transformé à la frontière.
-
-La contrainte de zone est vérifiée **en double** : dans `_walkable()` côté agent ET dans `model.do()` côté environnement, avec des formules identiques :
+Zone constraints are enforced **twice** — in the agent's `_walkable()` and in `model.do()` — with identical formulas:
 
 ```python
-# Zone enforcement (identique dans agents.py et model.py)
 extra = 1 if relaxed else 0
 if robot_type == "green"  and x >= W//3     + extra: return False
 if robot_type == "yellow" and x >= 2*W//3   + extra: return False
-# red : aucune restriction
+# red: no restriction
 ```
 
----
+</details>
 
-## 8. Stratégie de communication
+<br>
 
-Le système repose sur une philosophie de **messages ciblés** : chaque agent n'envoie des informations qu'aux agents qui en ont réellement besoin.
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
-### 8.1 Le CommunicationSystem
+## 📡 Communication System
 
-Boîte aux lettres centrale attachée au modèle (`model.communication_system`). Maintient un dictionnaire `_inbox` : `{agent_id: [messages]}`.
+Robots communicate through a **centralized message board** — no direct peer-to-peer connections. Messages are **targeted**, not broadcast-only, for efficiency.
 
-Trois modes de livraison :
+### Message Types
 
-- `send(message)` — envoi point-à-point vers un destinataire précis
-- `send_to_group(message, agent_ids)` — envoi ciblé vers une liste d'agents
-- `broadcast(message)` — diffusion à tous (clé `None`), purgée à la fin de chaque step
+```mermaid
+sequenceDiagram
+    participant G as ▲ Green Robot
+    participant SYS as 📬 Message Board
+    participant Y as ■ Yellow Robot
+    participant R as ◆ Red Robot
 
-### 8.2 Les 3 types de messages
+    Note over G: Spots yellow waste at (9,14)
+    G->>SYS: INFORM_WASTE {pos: [9,14], type: "yellow"}
+    SYS->>Y: Deliver to yellow robots only
 
-| Message | Déclencheur | Destinataires |
+    Note over Y: Navigates to (9,14) via BFS
+    Y->>SYS: INFORM_COLLECTED {pos: [9,14]}
+    SYS->>G: Broadcast to all
+    SYS->>Y: Broadcast to all
+    SYS->>R: Broadcast to all
+    Note over G,R: All robots remove (9,14) from memory
+```
+
+| Message | Trigger | Recipients |
 |---|---|---|
-| `INFORM_WASTE` | Un robot voit un déchet qui n'est pas son type cible | Robots du type responsable uniquement |
-| `INFORM_COLLECTED` | Un robot ramasse un déchet (`PICK` réussi) | Broadcast tous robots |
-| `DISPOSAL_POS` | Un robot aperçoit la DisposalZone | Robots rouges uniquement |
+| `INFORM_WASTE` | Robot spots waste it can't collect | Only robots of the responsible type |
+| `INFORM_COLLECTED` | Robot successfully picks up waste | Broadcast to all robots |
+| `DISPOSAL_POS` | Robot discovers the disposal zone | Red robots only |
 
-### 8.3 Exemple concret
+### Delivery Modes
 
-```
-Step 1 : Robot vert en (7,14) perçoit déchet jaune en (9,14)
-         → envoie INFORM_WASTE aux 3 robots jaunes uniquement
+| Mode | Method | Use Case |
+|---|---|---|
+| **Point-to-point** | `send()` | Direct message to one agent |
+| **Group** | `send_to_group()` | Targeted list (e.g., all yellow robots) |
+| **Broadcast** | `broadcast()` | All agents (cleared each step) |
 
-Step 2 : Les robots jaunes lisent leur inbox
-         → ajoutent (9,14):"yellow" à leur known_waste
+<details>
+<summary><strong>📬 Stale Entry Cleanup</strong></summary>
 
-Step 3 : Le robot jaune le plus proche calcule BFS vers (9,14)
-         → s'y dirige directement sans explorer
+<br>
 
-Step 4 : Le robot jaune ramasse le déchet
-         → broadcast INFORM_COLLECTED
-         → les 2 autres robots jaunes retirent (9,14) de leur mémoire
-```
-
-### 8.4 Initialisation des robots rouges
-
-La position de la `DisposalZone` est **pré-remplie** dans le knowledge de tous les robots rouges à l'initialisation du modèle :
+Every `_update_knowledge()` call purges waste positions that no longer hold actual waste on the grid:
 
 ```python
-for agent in self.agents:
-    if isinstance(agent, Robot) and agent.robot_type == "red":
-        agent.knowledge["disposal_pos"] = self._disposal_pos
-```
-
-Cela évite que les robots rouges perdent du temps à explorer pour trouver la zone de dépôt.
-
-### 8.5 Purge des entrées périmées
-
-À chaque `_update_knowledge()`, chaque robot vérifie directement dans la grille si les positions mémorisées contiennent encore un déchet. Si la case est vide, la position est retirée de `known_waste` :
-
-```python
-stale = [p for p in known_waste if not any(isinstance(o, Waste)
-         for o in grid.get_cell_list_contents(p))]
+stale = [p for p in known_waste
+         if not any(isinstance(o, Waste)
+                    for o in grid.get_cell_list_contents(p))]
 for p in stale:
     del known_waste[p]
 ```
 
----
+This prevents robots from chasing waste that's already been collected.
 
-## 9. Actions et `model.do()`
+</details>
 
-Le modèle est l'**arbitre** de toutes les actions. La méthode `do(agent, action)` valide chaque action avant de l'exécuter et retourne les nouveaux percepts.
+<br>
 
-| Action | Condition de validité | Effet |
-|---|---|---|
-| `MOVE` | Case adjacente, dans la zone, sans mur | Déplace le robot |
-| `PICK` | Déchet cible sur la case, inventaire non plein | Retire le déchet de la grille |
-| `TRANSFORM` | Inventaire ≥ N déchets cibles | Remplace N cibles par 1 produit |
-| `DROP` | Inventaire non vide | Dépose sur grille (ou dispose si rouge à DisposalZone) |
-| `WAIT` | Toujours valide | Ne fait rien |
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
----
+## 📁 Project Structure
 
-## 10. Installation et lancement
-
-### 10.1 Prérequis
-
-- Python 3.11 ou 3.12
-- Venv Python **sans** Anaconda actif (`conda deactivate` avant)
-
-### 10.2 Installation
-
-```powershell
-python -m venv venv
-venv\Scripts\Activate.ps1        # Windows PowerShell
-pip install mesa==3.1.4 solara matplotlib pandas
+```
+.
+├── 📄 .gitignore
+├── 📖 README.md
+├── 📋 requirements.txt
+├── 🚀 run.py                 # Headless CLI runner
+├── 🖥️ server.py              # Solara visualization
+└── 📦 src/
+    ├── __init__.py
+    ├── 🤖 agents.py          # Robot class — perceive/deliberate/act loop
+    ├── 📡 communication.py   # Message & CommunicationSystem classes
+    ├── 🌍 model.py           # RobotMission — environment & action execution
+    └── 🧱 objects.py         # Passive objects: Waste, Wall, DisposalZone, Radioactivity
 ```
 
-### 10.3 Lancement de la visualisation
+### Module Dependency Graph
 
-```powershell
+```mermaid
+graph BT
+    OBJ["🧱 objects.py<br/><i>Waste, Wall, DisposalZone, Radioactivity</i>"]
+    COM["📡 communication.py<br/><i>Message, CommunicationSystem</i>"]
+    AGT["🤖 agents.py<br/><i>Robot</i>"]
+    MDL["🌍 model.py<br/><i>RobotMission</i>"]
+    RUN["🚀 run.py"]
+    SRV["🖥️ server.py"]
+
+    AGT --> OBJ
+    AGT --> COM
+    MDL --> OBJ
+    MDL --> COM
+    MDL --> AGT
+    RUN --> MDL
+    SRV --> MDL
+    SRV --> AGT
+    SRV --> OBJ
+
+    style OBJ fill:#e8f5e9,stroke:#2e7d32
+    style COM fill:#e3f2fd,stroke:#1565c0
+    style AGT fill:#fff3e0,stroke:#e65100
+    style MDL fill:#fce4ec,stroke:#c62828
+    style RUN fill:#f3e5f5,stroke:#7b1fa2
+    style SRV fill:#f3e5f5,stroke:#7b1fa2
+```
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Python 3.11** or **3.12**
+- If using Anaconda, run `conda deactivate` first
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/zouaynib/Self-Organization-of-Robots-in-a-Hostile-Environnement.git
+cd Self-Organization-of-Robots-in-a-Hostile-Environnement
+
+# Create a virtual environment
+python -m venv venv
+source venv/bin/activate        # macOS / Linux
+# venv\Scripts\activate         # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Run the Visualization
+
+```bash
 solara run server.py
 ```
 
-Puis ouvrir **http://localhost:8765** dans le navigateur.
+Then open **http://localhost:8765** in your browser.
 
-### 10.4 Lancement headless (sans GUI)
+### Run Headless (No GUI)
 
-```powershell
-python run.py                     # 200 steps par défaut
-python run.py --steps 500         # 500 steps
-python run.py --steps 300 --csv   # sauvegarde results.csv
-python run.py --no-comm           # sans communication entre agents
+```bash
+python run.py                     # 200 steps (default)
+python run.py --steps 500         # Custom step count
+python run.py --steps 300 --csv   # Export metrics to results.csv
+python run.py --no-comm           # Disable inter-agent communication
 ```
 
-### 10.5 Paramètres configurables dans l'interface
+<details>
+<summary><strong>📊 Example Headless Output</strong></summary>
 
-- Communication agents (activée / désactivée)
-- Nombre de déchets verts / jaunes / rouges initiaux
-- Nombre de murs
-- Nombre de robots par type (1 à 6)
+```
+============================================================
+Self-organization of Robots — Headless Simulation
+============================================================
+  Steps        : 200
+  Communication: True
+------------------------------------------------------------
+  Step   50 | Green:   8  Yellow:  12  Red:   5  Disposed:   2  Total:  25
+  Step  100 | Green:   2  Yellow:   6  Red:   8  Disposed:   7  Total:  16
+  Step  150 | Green:   0  Yellow:   1  Red:   4  Disposed:  14  Total:   5
+  Step  200 | Green:   0  Yellow:   0  Red:   0  Disposed:  19  Total:   0
 
----
+✅  All waste disposed at step 200!
+------------------------------------------------------------
+Simulation complete.
+```
 
-## 11. Métriques
+</details>
 
-Le `DataCollector` de Mesa enregistre à chaque step :
+<br>
 
-| Métrique | Description |
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## ⚙️ Configuration
+
+The Solara interface provides interactive sliders and toggles:
+
+| Parameter | Default | Range | Description |
+|---|:---:|---|---|
+| `communication` | `True` | On / Off | Enable inter-agent messaging |
+| `n_green_waste` | 20 | 5 – 50 | Initial green waste in z1 |
+| `n_yellow_waste` | 10 | 0 – 30 | Initial yellow waste in z2 |
+| `n_red_waste` | 5 | 0 – 20 | Initial red waste in z3 |
+| `n_walls` | 40 | 0 – 80 | Random wall obstacles |
+| `n_green_robots` | 3 | 1 – 6 | Green robot count |
+| `n_yellow_robots` | 3 | 1 – 6 | Yellow robot count |
+| `n_red_robots` | 3 | 1 – 6 | Red robot count |
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 📈 Metrics & Analysis
+
+The `DataCollector` records these metrics at every simulation step:
+
+| Metric | Description |
 |---|---|
-| `Green Waste` | Déchets verts restants sur la grille |
-| `Yellow Waste` | Déchets jaunes en circulation |
-| `Red Waste` | Déchets rouges en circulation |
-| `Disposed` | Total des déchets définitivement éliminés |
-| `Total Waste` | Somme des trois types en circulation |
+| 🟢 `Green Waste` | Green waste remaining on the grid |
+| 🟡 `Yellow Waste` | Yellow waste in circulation |
+| 🔴 `Red Waste` | Red waste in circulation |
+| ♻️ `Disposed` | Total waste permanently eliminated |
+| 📊 `Total Waste` | Sum of all three waste types still active |
 
-Ces métriques sont affichées en temps réel dans le graphe sous la grille. Avec `--csv`, elles sont exportées dans `results.csv`.
+These are plotted in real-time in the Solara UI and can be exported with `--csv`.
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+## 🎓 Actions Reference
+
+`model.do()` is the **environment arbiter** — it validates every action before executing it:
+
+| Action | Valid When | Effect |
+|---|---|---|
+| `MOVE` | Adjacent cell, within zone, no wall | Moves the robot |
+| `PICK` | Target waste on cell, inventory not full | Removes waste from grid |
+| `TRANSFORM` | Inventory ≥ N target waste | Converts N waste → 1 product |
+| `DROP` | Inventory not empty | Places waste on grid (or disposes if red @ disposal) |
+| `WAIT` | Always | No operation |
+
+<br>
 
 ---
 
-*CentraleSupélec — MAS 2025-2026*
+<div align="center">
+
+**Built with** ❤️ **at CentraleSupelec — MAS 2025-2026**
+
+</div>
