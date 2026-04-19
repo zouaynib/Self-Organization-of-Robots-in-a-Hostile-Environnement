@@ -18,16 +18,17 @@
 </div>
 
 
+## 🎥 Demo Video
 
-🎥 Demo Video
-
-Watch the robots coordinate, navigate, transform waste, and clean the hostile environment in real time.
+> Watch the robots coordinate, navigate, transform waste, and clean the hostile environment in real time.
 
 <div align="center">
 
-▶️ Click here to watch the demo on YouTube
-</div>
+[![Watch the Demo](https://img.youtube.com/vi/WDXd6ve8NxA/maxresdefault.jpg)](https://www.youtube.com/watch?v=WDXd6ve8NxA)
 
+### ▶️ [Click here to watch the demo on YouTube](https://www.youtube.com/watch?v=WDXd6ve8NxA)
+
+</div>
 ---
 
 ## 📋 Table of Contents
