@@ -456,7 +456,7 @@ extra = 1 if relaxed else 0
 
 if robot_type == "green"  and x >= W//3   + extra: return False
 if robot_type == "yellow" and x >= 2*W//3 + extra: return False
-# red: no restriction
+
 
 The relaxed=True parameter allows robots to slightly cross boundaries only when necessary (e.g., waste transfer).
 
